@@ -5,6 +5,17 @@ using System.Linq;
 
 namespace dll2lib
 {
+    static class ExtensionMethods
+    {
+        public static string ReadRequiredLine(this StreamReader reader)
+        {
+            var line = reader.ReadLine();
+            if (line == null)
+                throw new InvalidDataException("Unexpected end of file");
+            return line;
+        }
+    }
+
     class Program
     {
         private static readonly string[] PRIVATES = 
@@ -28,10 +39,21 @@ namespace dll2lib
 
         static int Main(string[] args) 
         {
-            if (args.Length != 1) 
+            if (args.Length < 1) 
                 return Usage();
 
-            var dllpath = args[0];
+            var dllpath = "";
+            var cleanfiles = true;
+            foreach (var arg in args)
+            {
+                if (arg.ToLower() == "/noclean")
+                    cleanfiles = false;
+                else if (dllpath.Length == 0)
+                    dllpath = arg;
+                else
+                    return Usage();
+            }
+
             if (!File.Exists(dllpath))
                 return Usage(string.Format("Could not find input file {0}", dllpath));
 
@@ -45,13 +67,42 @@ namespace dll2lib
             try
             {
                 RunDumpbin(dllpath, dmppath);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("RunDumpbin: " + ex.Message);
+                return -1;
+            }
+
+            try
+            {
                 Dump2Def(dmppath, defpath);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Dump2Def: " + ex.Message);
+                return -1;
+            }
+            finally
+            {
+                if (cleanfiles && File.Exists(dmppath))
+                    File.Delete(dmppath);
+            }
+
+            try
+            {
+
                 RunLib(defpath, libpath);
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Console.WriteLine("RunLib: " + ex.Message);
                 return -1;
+            }
+            finally
+            {
+                if (cleanfiles && File.Exists(defpath))
+                    File.Delete(defpath);
             }
 
             return 0;
@@ -83,22 +134,33 @@ namespace dll2lib
             {
                 using (var deffile = new StreamWriter(File.OpenWrite(defpath)))
                 {
-                    // skip first 14 lines
-                    for (int i = 0; i < 14; ++i)
-                        dmpfile.ReadLine();
+                    // skip header
+                    for (int i = 0; i < 3; ++i)
+                        dmpfile.ReadRequiredLine();
+
+                    // check input file type
+                    var next = dmpfile.ReadRequiredLine().Trim();
+                    if (next != "File Type: DLL")
+                    {
+                        throw new InvalidDataException(String.Format("Unexpected file type: {0}", next));
+                    }
+
+                    // skip info lines
+                    for (int i = 0; i < 10; ++i)
+                        dmpfile.ReadRequiredLine();
 
                     // assert next 2 lines are what we expect
-                    if (!dmpfile.ReadLine().TrimStart().StartsWith("ordinal"))
-                        throw new InvalidDataException();
+                    if (!dmpfile.ReadRequiredLine().TrimStart().StartsWith("ordinal"))
+                        throw new InvalidDataException("Unexpected input; expected 'ordinal'");
 
-                    if (dmpfile.ReadLine().Trim().Length != 0)
-                        throw new InvalidDataException();
+                    if (dmpfile.ReadRequiredLine().Trim().Length != 0)
+                        throw new InvalidDataException("Unexpected input; expected empty line");
 
                     // begin exports
                     deffile.WriteLine("EXPORTS");
                     while (true)
                     {
-                        var line = dmpfile.ReadLine().Trim();
+                        var line = dmpfile.ReadRequiredLine();
 
                         if (line.Length == 0)
                             break;
@@ -120,7 +182,7 @@ namespace dll2lib
                     }
 
                     // assert begin of summary
-                    if (!dmpfile.ReadLine().Trim().StartsWith("Summary"))
+                    if (!dmpfile.ReadRequiredLine().Trim().StartsWith("Summary"))
                         throw new InvalidDataException();
                 }
             }
@@ -130,7 +192,14 @@ namespace dll2lib
         {
             if (message.Length > 0)
                 Console.WriteLine(message);
-            Console.WriteLine("Usage: dll2lib.exe <dll>");
+            else
+            {
+                Console.WriteLine("Usage: dll2lib.exe <options> <dll>");
+                Console.WriteLine();
+                Console.WriteLine("  options:");
+                Console.WriteLine();
+                Console.WriteLine("    /NOCLEAN");
+            }
             return -1;
         }
     }
