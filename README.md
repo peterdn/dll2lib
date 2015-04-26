@@ -1,13 +1,22 @@
 dll2lib
 =======
 
-Simple app to produce a lib from a dll
+##Summary
 
-Requires dumpbin.exe and lib.exe in %PATH% -- easiest to run from VS2012 ARM
-cross tools command prompt.
+Produces an import library (.lib) from a target dynamic link library (.dll).
 
-Usage: dll2lib.exe <options> <dll>
+Requires `dumpbin.exe` and `lib.exe` in `%PATH%`. Easiest to run from the Visual Studio tools command prompt.
 
-  Options:
+###Usage
 
-    /NOCLEAN        don't delete intermediate files
+    dll2lib.exe <options> <dll>
+
+    Options:
+
+        /NOCLEAN        don't delete intermediate files
+
+##Building
+
+Open in Visual Studio 2012+ and hit build, or build from Visual Studio tools command prompt:
+
+    msbuild /p:Configuration=Release

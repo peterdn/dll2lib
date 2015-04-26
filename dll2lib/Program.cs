@@ -198,7 +198,7 @@ namespace dll2lib
                 Console.WriteLine();
                 Console.WriteLine("  options:");
                 Console.WriteLine();
-                Console.WriteLine("    /NOCLEAN");
+                Console.WriteLine("    /NOCLEAN        don't delete intermediate files");
             }
             return -1;
         }
